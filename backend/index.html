@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Craftions | Voting</title>
+</head>
+
+<body>
+    <script>
+        async function vote(id, choice) {
+            const $url = `http://127.0.0.1/api/vote?action=VOTE&id=${id}&choice=${choice}`
+
+            const r = await fetch($url, {
+                method: 'POST'
+            })
+            try {
+                const j = await r.json()
+                return !j.error
+            } catch {
+                return false
+            }
+        }
+    </script>
+    Some voting site
+</body>
+
+</html>

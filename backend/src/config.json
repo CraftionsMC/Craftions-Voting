@@ -1,0 +1,9 @@
+{
+    "username": "root",
+    "password": "root",
+    "port": 3306,
+    "name": "craftions",
+    "host": "localhost",
+    "table": "polls",
+    "index": "./index.html"
+}
