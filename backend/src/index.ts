@@ -6,11 +6,13 @@ import { readFileSync } from 'fs'
 import url from 'url'
 import { ParsedUrlQuery } from 'querystring'
 import config from './config.json'
+import { checkToken, init } from './userprofiles'
 
 const db = database.connect()
 const index = config.index ?? './index.html'
 const app = express()
 const webpage = readFileSync(index).toString()
+const webclient = init()
 
 app.use(bodyParser.json())
 
@@ -32,7 +34,7 @@ app.get('/vote', function (_req, res) {
 })
 
 app.post('/api/vote', async function (req, res) {
-    const queryObject: ParsedUrlQuery = url.parse(req.url, true).query; // query strings in url
+    const queryObject: ParsedUrlQuery = url.parse(req.url, true).query // query strings in url
     const action = queryObject.action // action query string
     if (!isString(action, () => {
         res.status(400)
@@ -40,7 +42,27 @@ app.post('/api/vote', async function (req, res) {
     })) return
     switch (queryObject.action) {
         case 'CREATE':
+            const $username = queryObject.username
+            const $token = queryObject.token
+            const $data = queryObject.data
 
+            // check types of username and token
+            if (!isString($username, () => {
+                res.status(400)
+                res.send('QueryString-Error at username - Bad Request 400')
+            })) return
+            const username = decodeURIComponent($username as string)
+            if (!isString($token, () => {
+                res.status(400)
+                res.send('QueryString-Error at token - Bad Request 400')
+            })) return
+            const token = decodeURIComponent($token as string)
+            if (!isString($data, () => {
+                res.status(400)
+                res.send('QueryString-Error at data - Bad Request 400')
+            })) return
+            const data = JSON.parse($data as string)
+            checkToken(webclient, username, token, () => {}, () => {})
             break
         case 'VOTE':
             const $uniqueId = queryObject.id // uniqueId of poll
@@ -124,7 +146,7 @@ app.post('/api/vote', async function (req, res) {
             break
         case 'DELETE':
 
-            break;
+            break
         default:
             res.status(501)
             res.send('API-call not implemented - Not Implemented 501')
