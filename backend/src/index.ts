@@ -7,6 +7,8 @@ import url from 'url'
 import { ParsedUrlQuery } from 'querystring'
 import config from './config.json'
 import { checkToken, init } from './userprofiles'
+import cors from 'cors'
+import { time, timeStamp } from 'console'
 
 const db = database.connect()
 const index = config.index ?? './index.html'
@@ -15,6 +17,7 @@ const webpage = readFileSync(index).toString()
 const webclient = init()
 
 app.use(bodyParser.json())
+app.use(cors())
 
 function isString(value: string | string[] | undefined, falseCallback?: Function): boolean {
     if (value == undefined) {
@@ -28,7 +31,7 @@ function isString(value: string | string[] | undefined, falseCallback?: Function
     return true
 }
 
-app.get('/vote', function (_req, res) {
+app.get('/vote', async function (_req, res) {
     res.send(webpage)
     res.status(200)
 })
@@ -42,6 +45,11 @@ app.post('/api/vote', async function (req, res) {
     })) return
     switch (queryObject.action) {
         case 'CREATE':
+            // 200 -> Success
+            // 400 -> Invalid QueryStrings | Invalid data
+            // 403 -> no Account validation
+            // 500 -> Serverside error
+
             const $username = queryObject.username
             const $token = queryObject.token
             const $data = queryObject.data
@@ -61,10 +69,37 @@ app.post('/api/vote', async function (req, res) {
                 res.status(400)
                 res.send('QueryString-Error at data - Bad Request 400')
             })) return
-            const data = JSON.parse($data as string)
-            checkToken(webclient, username, token, () => {}, () => {})
+            const data = JSON.parse(decodeURIComponent($data as string))
+            checkToken(webclient, username, token, (success: boolean) => {
+                if (!success) {
+                    res.status(403)
+                    res.send('Could not verify account - Forbidden 403')
+                    return
+                }
+                const $name = data.name
+                const $description = data.description
+                const $choices = data.choices
+                const $seePercentage = data.seePercentage
+                const $changeVote = data.changeVote
+                const $end = data.end
+
+                // check data string
+                if (!$name || !$description || !$choices || !$seePercentage || !$changeVote || !$end) {
+                    res.status(400)
+                    res.send('Invalid data - Bad Request 400')
+                }
+            }, (_reason: any) => {
+                res.status(500)
+                res.send('Error whilst verifying account - Internal Server Error 500')
+            })
             break
         case 'VOTE':
+            // 200 -> Success
+            // 400 -> Invalid QueryStrings | Invalid choice
+            // 404 -> Poll not found
+            // 409 -> Poll already ended
+            // 500 -> Serverside error
+
             const $uniqueId = queryObject.id // uniqueId of poll
             const $choice = queryObject.choice // choice for the given poll
 
@@ -113,6 +148,11 @@ app.post('/api/vote', async function (req, res) {
                     if (poll == null) {
                         res.status(404)
                         res.send('Poll not found (2) - Not Found 404')
+                        return
+                    }
+                    if (poll.end >= Math.round(Date.now() / 1000)) {
+                        res.status(403)
+                        res.send('Poll allready ended - Conflict 409')
                         return
                     }
                     if (poll.choices.length <= choice || choice < 0) {
