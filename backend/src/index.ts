@@ -8,7 +8,9 @@ import { ParsedUrlQuery } from 'querystring'
 import config from './config.json'
 import { checkToken, init } from './userprofiles'
 import cors from 'cors'
-import { time, timeStamp } from 'console'
+import { Option } from './types/option'
+
+// TODO: maximale time 2419200
 
 const db = database.connect()
 const index = config.index ?? './index.html'
@@ -81,13 +83,79 @@ app.post('/api/vote', async function (req, res) {
                 const $choices = data.choices
                 const $seePercentage = data.seePercentage
                 const $changeVote = data.changeVote
-                const $end = data.end
+                const $time = data.time
 
-                // check data string
-                if (!$name || !$description || !$choices || !$seePercentage || !$changeVote || !$end) {
+                // check data
+                if (!$name || !$description || !$choices || !$seePercentage || !$changeVote ||
+                    !$time || typeof $name !== 'string' || typeof $description !== 'string' ||
+                    typeof $choices !== 'object' || typeof $seePercentage !== 'boolean' ||
+                    typeof $changeVote !== 'boolean' || typeof $time !== 'number' ||
+                    !Array.isArray($choices)) {
                     res.status(400)
                     res.send('Invalid data - Bad Request 400')
+                    return
                 }
+
+                const name = $name as string
+                const description = $description as string
+                const choices: Option[] = []
+                const seePercentage = $seePercentage as boolean
+                const changeVote = $changeVote as boolean
+                const time = $time as number
+
+                // check lengths
+                if (name.length > 32) {
+                    res.status(400)
+                    res.send('Invalid name length - Bad Request 400')
+                    return
+                }
+                if (description.length > 500) {
+                    res.status(400)
+                    res.send('Invalid description length - Bad Request 400')
+                    return
+                }
+                if (choices.length < 2 && choices.length > 5) {
+                    res.status(400)
+                    res.send('Invalid choices length - Bad Request 400')
+                    return
+                }
+
+                // create choices array
+                {
+                    let success = true
+                    let i = 0
+                    $choices.forEach(key => {
+                        if (!key || typeof key !== 'object' || !key.name || typeof key.name !== 'string') {
+                            res.status(400)
+                            res.send('Choices not valid - Bad Request 400')
+                            success = false
+                            return
+                        }
+                        const name = key.name
+                        const description = key.description ?? ''
+                        const option: Option = {
+                            name: name,
+                            description: description,
+                            votes: 0,
+                            id: i
+                        }
+                        choices.push(option)
+                        i++
+                    })
+                    if (!success) {
+                        return
+                    }
+                }
+                /*
+                const poll: Poll = {
+                    name: name,
+                    description: description,
+                    choices: choices,
+                    seePercentage: seePercentage,
+                    changeVote: changeVote
+                }
+                */
+
             }, (_reason: any) => {
                 res.status(500)
                 res.send('Error whilst verifying account - Internal Server Error 500')
