@@ -10,7 +10,7 @@ import { checkToken, init } from './userprofiles'
 import cors from 'cors'
 import { Option } from './types/option'
 
-// TODO: maximale time 2419200
+// TODO: maximale time 40320 mins
 
 const db = database.connect()
 const index = config.index ?? './index.html'
@@ -101,9 +101,9 @@ app.post('/api/vote', async function (req, res) {
                 const choices: Option[] = []
                 const seePercentage = $seePercentage as boolean
                 const changeVote = $changeVote as boolean
-                const time = $time as number
+                let time = $time as number
 
-                // check lengths
+                // check lengths and sizes
                 if (name.length > 32) {
                     res.status(400)
                     res.send('Invalid name length - Bad Request 400')
@@ -118,6 +118,12 @@ app.post('/api/vote', async function (req, res) {
                     res.status(400)
                     res.send('Invalid choices length - Bad Request 400')
                     return
+                }
+                if (time < 5) {
+                    time = 5
+                }
+                if (time > 40320) {
+                    time = 40320
                 }
 
                 // create choices array
@@ -146,16 +152,24 @@ app.post('/api/vote', async function (req, res) {
                         return
                     }
                 }
-                /*
+
                 const poll: Poll = {
                     name: name,
                     description: description,
                     choices: choices,
                     seePercentage: seePercentage,
-                    changeVote: changeVote
+                    changeVote: changeVote,
+                    owner: username,
+                    end: time * 60
                 }
-                */
 
+                database.createPoll(db, poll, (err: any, result: any) => {
+                    if (err) {
+                        res.status(500)
+                        res.send('Error whilst creating poll - Internal Server Error 500')
+                        return
+                    }
+                })
             }, (_reason: any) => {
                 res.status(500)
                 res.send('Error whilst verifying account - Internal Server Error 500')
