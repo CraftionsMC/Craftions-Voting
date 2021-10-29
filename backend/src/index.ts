@@ -46,7 +46,7 @@ app.post('/api/vote', async function (req, res) {
         res.send('QueryString-Error at action - Bad Request 400')
     })) return
     switch (queryObject.action) {
-        case 'CREATE':
+        case 'CREATE': {
             // 200 -> Success
             // 400 -> Invalid QueryStrings | Invalid data
             // 403 -> no Account validation
@@ -160,7 +160,7 @@ app.post('/api/vote', async function (req, res) {
                     seePercentage: seePercentage,
                     changeVote: changeVote,
                     owner: username,
-                    end: time * 60
+                    end: Math.round(Date.now() / 1000) + time * 60
                 }
 
                 database.createPoll(db, poll, (err: any, result: any) => {
@@ -169,13 +169,16 @@ app.post('/api/vote', async function (req, res) {
                         res.send('Error whilst creating poll - Internal Server Error 500')
                         return
                     }
+                    res.status(200)
+                    res.send('Successfully created poll - OK 200')
                 })
             }, (_reason: any) => {
                 res.status(500)
                 res.send('Error whilst verifying account - Internal Server Error 500')
             })
             break
-        case 'VOTE':
+        }
+        case 'VOTE': {
             // 200 -> Success
             // 400 -> Invalid QueryStrings | Invalid choice
             // 404 -> Poll not found
@@ -266,13 +269,64 @@ app.post('/api/vote', async function (req, res) {
                 })
             })
             break
-        case 'DELETE':
+        }
+        case 'DELETE': {
+            // 200 -> Success
+            // 400 -> Invalid QueryStrings
+            // 403 -> no Account validation
+            // 404 -> Poll not found
+            // 500 -> Serverside error
 
+            const $username = queryObject.username
+            const $token = queryObject.token
+            const $id = queryObject.id
+
+            // check types of username and token
+            if (!isString($username, () => {
+                res.status(400)
+                res.send('QueryString-Error at username - Bad Request 400')
+            })) return
+            const username = decodeURIComponent($username as string)
+            if (!isString($token, () => {
+                res.status(400)
+                res.send('QueryString-Error at token - Bad Request 400')
+            })) return
+            const token = decodeURIComponent($token as string)
+            if (!isString($id, () => {
+                res.status(400)
+                res.send('QueryString-Error at id - Bad Request 400')
+            })) return
+            if (Number.isNaN($id)) {
+                res.status(400)
+                res.send('QueryString-Error at id - Bad Request 400')
+                return
+            }
+            const id = Number.parseInt($id as string)
+            checkToken(webclient, username, token, (success: boolean) => {
+                if (!success) {
+                    res.status(403)
+                    res.send('Could not verify account - Forbidden 403')
+                    return
+                }
+
+                database.deletePoll(db, id, (err: any, res: any) => {
+                    if (err) {
+                        res.status(500)
+                        res.send('Error whilst deleting poll - Internal Server Error 500')
+                        return
+                    }
+                })
+            }, (_reason: any) => {
+                res.status(500)
+                res.send('Error whilst verifying account - Internal Server Error 500')
+            })
             break
-        default:
+        }
+        default: {
             res.status(501)
             res.send('API-call not implemented - Not Implemented 501')
             return
+        }
     }
 })
 
