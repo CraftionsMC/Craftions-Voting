@@ -22,7 +22,7 @@ app.use(bodyParser.json())
 app.use(cors())
 
 function isString(value: string | string[] | undefined, falseCallback?: Function): boolean {
-    if (value == undefined) {
+    if (value === undefined) {
         falseCallback?.call(null)
         return false
     }
@@ -230,7 +230,7 @@ app.post('/api/vote', async function (req, res) {
                         res.send('Error whilst loading poll - Internal Server Error 500')
                         return
                     }
-                    if (poll == null) {
+                    if (poll === null) {
                         res.status(404)
                         res.send('Poll not found (2) - Not Found 404')
                         return
@@ -247,12 +247,12 @@ app.post('/api/vote', async function (req, res) {
                     }
                     let i = 0
                     poll.choices.forEach(key => {
-                        if (poll.choices[i].id == choice) {
+                        if (poll.choices[i].id === choice) {
                             poll.choices[i].votes += 1
                         }
                         i++
                     })
-                    if (i == 0) {
+                    if (i === 0) {
                         res.status(404)
                         res.send('Poll not found (3) - Not Found 404')
                         return
@@ -309,12 +309,23 @@ app.post('/api/vote', async function (req, res) {
                     return
                 }
 
-                database.deletePoll(db, id, (err: any, res: any) => {
+                database.loadPoll(db, id, (err: any, poll: Poll) => {
                     if (err) {
                         res.status(500)
-                        res.send('Error whilst deleting poll - Internal Server Error 500')
+                        res.send('Error whilst checking permissions - Internal Server Error 500')
                         return
                     }
+                    if (username !== poll.owner) {
+                        res.status(403)
+                        res.send('Permission denied - Forbidden 403')
+                    }
+                    database.deletePoll(db, id, (err: any, result: any) => {
+                        if (err) {
+                            res.status(500)
+                            res.send('Error whilst deleting poll - Internal Server Error 500')
+                            return
+                        }
+                    })
                 })
             }, (_reason: any) => {
                 res.status(500)
