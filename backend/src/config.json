@@ -5,6 +5,16 @@
     "name": "craftions",
     "host": "localhost",
     "table": "polls",
-    "index": "./index.html",
-    "rootUrl": "https://accounts.craftions.net"
+    "index": "./files/index.html",
+    "rootUrl": "https://accounts.craftions.net",
+    "initScripts": {
+        "home": "./files/initHome.js",
+        "stats": "./files/initStats.js",
+        "poll": "./files/initPoll.js"
+    },
+    "responseCodes": {
+        "400": "./files/400.html",
+        "404": "./files/404.html",
+        "500": "./files/500.html"
+    }
 }
