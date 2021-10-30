@@ -10,12 +10,27 @@ import { checkToken, init } from './userprofiles'
 import cors from 'cors'
 import { Option } from './types/option'
 
-// TODO: maximale time 40320 mins
-
-const db = database.connect()
+// load filepaths from config
 const index = config.index ?? './index.html'
-const app = express()
+const $initHome = config.initScripts.home ?? './initHome.js'
+const $initStats = config.initScripts.home ?? './initStats.js'
+const $initPoll = config.initScripts.home ?? './initPoll.js'
+const $err400 = config.responseCodes['400'] ?? './400.html'
+const $err404 = config.responseCodes['404'] ?? './404.html'
+const $err500 = config.responseCodes['500'] ?? './500.html'
+
+// read files
 const webpage = readFileSync(index).toString()
+const initHome = readFileSync($initHome).toString()
+const initStats = readFileSync($initStats).toString()
+const initPoll = readFileSync($initPoll).toString()
+const err400 = readFileSync($err400).toString()
+const err404 = readFileSync($err404).toString()
+const err500 = readFileSync($err500).toString()
+
+// init services
+const db = database.connect()
+const app = express()
 const webclient = init()
 
 app.use(bodyParser.json())
@@ -33,12 +48,91 @@ function isString(value: string | string[] | undefined, falseCallback?: Function
     return true
 }
 
-app.get('/vote', async function (_req, res) {
-    res.send(webpage)
+// files
+app.get('/files/vote/init.js', function (_req, res) {
+    res.send(initHome)
+    res.status(200)
+})
+app.get('/files/vote/stats/init.js', function (_req, res) {
+    res.send(initStats)
+    res.status(200)
+})
+app.get('/files/vote/poll/init.js', function (_req, res) {
+    res.send(initPoll)
     res.status(200)
 })
 
-app.post('/api/vote', async function (req, res) {
+// websites
+app.get('/vote', function (_req, res) {
+    res.send(webpage.replace('%init_file%', '/files/vote/init.js'))
+    res.status(200)
+})
+app.get('/vote/stats', function (_req, res) {
+    res.send(webpage.replace('%init_file%', '/files/stats/init.js'))
+    res.status(200)
+})
+app.get('/vote/poll/:id', function (req, res) {
+    const $id = req.params.id;
+    if (Number.isNaN($id)) {
+        res.status(400)
+        res.send(err400)
+        return
+    }
+    const id = Number.parseInt($id)
+
+    database.pollExists(db, id, (err: any, success: boolean) => {
+        if (err) {
+            res.status(500)
+            res.send(err500)
+            return
+        }
+        if (!success) {
+            res.status(404)
+            res.send(err404)
+            return
+        }
+        database.loadPoll(db, id, (err: any, poll: Poll) => {
+            if (err) {
+                res.status(500)
+                res.send(500)
+                return
+            }
+            let choices: any[] = []
+            poll.choices.forEach(key => {
+                if (poll.seePercentage) {
+                    choices.push({
+                        id: key.id,
+                        name: key.name,
+                        description: key.description,
+                        votes: key.votes
+                    })
+                } else {
+                    choices.push({
+                        id: key.id,
+                        name: key.name,
+                        description: key.description
+                    })
+                }
+            })
+
+            res.status(200)
+            res.send(webpage.replace('%init_file%', '/files/vote/poll/init.js')
+                .replace('%poll_data%', `\nconst pollData = ${JSON.stringify({
+                    id: id,
+                    name: poll.name,
+                    description: poll.description,
+                    choices: choices,
+                    changeVote: poll.changeVote,
+                    seePercentage: poll.seePercentage,
+                    owner: poll.owner,
+                    end: poll.end
+                })}`))
+        })
+    })
+})
+
+// API
+app.post('/api/vote', function (req, res) {
     const queryObject: ParsedUrlQuery = url.parse(req.url, true).query // query strings in url
     const action = queryObject.action // action query string
     if (!isString(action, () => {
@@ -90,7 +184,8 @@ app.post('/api/vote', async function (req, res) {
                     !$time || typeof $name !== 'string' || typeof $description !== 'string' ||
                     typeof $choices !== 'object' || typeof $seePercentage !== 'boolean' ||
                     typeof $changeVote !== 'boolean' || typeof $time !== 'number' ||
-                    !Array.isArray($choices)) {
+                    !Array.isArray($choices) || $name.includes('<') || $name.includes('>') ||
+                    $description.includes('<') || $description.includes('>')) {
                     res.status(400)
                     res.send('Invalid data - Bad Request 400')
                     return
